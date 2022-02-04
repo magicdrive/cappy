@@ -1,0 +1,106 @@
+#! /bin/bash
+
+#
+# cappy - cap command wrapper that allows you to select the stage interactively (with fzf)
+#
+# USAGE:
+#   cappy [OPTIONS] # cap command wrapper that allows you to select the stage interactively (with fzf)
+# OPTIONS:
+#   * [-h|--help] # Show this help.
+#
+# ex)
+#     cappy --help
+#     cappy deploy # select target stage with fzf.
+#
+# MIT License
+#
+# Copyright (c) 2022 Hiroshi IKEGAMI
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+
+
+CAPPY_CURRENT_CAPFILE_DIR=""
+
+cappy::help() {
+    cat << HELP >&2
+USAGE:
+  cappy [OPTIONS] # cap command wrapper that allows you to select the stage interactively (with fzf)
+OPTIONS:
+  * [-h|--help] # Show this help.
+
+ex)
+    cappy --help
+    cappy deploy # select target stage with fzf.
+HELP
+    exit 1
+}
+
+
+cappy::topdir() {
+    S_DIR="$(pwd)"
+    while true; do
+        if [[ -f "${S_DIR}/Capfile" ]];then
+            export CAPPY_CURRENT_CAPFILE_DIR="${S_DIR}"
+            break
+        else
+            if [[ "${S_DIR}" = "/" ]];then
+                echo "Capfile not found."
+                exit 1
+            else
+                S_DIR=$(dirname "${S_DIR}")
+            fi
+        fi
+    done
+}
+
+
+cappy::main() {
+    cappy::topdir
+
+    cappy_stage="$(ls ${CAPPY_CURRENT_CAPFILE_DIR}/config/deploy/ | sed -e "s/.rb$//g" | fzf)"
+
+    if [[ -z "${cappy_stage}" ]];then
+        echo "Capistrano stage was not selected."
+        exit 1
+
+    fi
+
+    cmd="bundle exec cap ${cappy_stage} $@"
+
+    echo "$cmd"
+
+    read -p "execute ok? (y/N): " yn
+    case "$yn" in
+        [yY]*)
+            $cmd
+            ;;
+        *)
+            echo "abort."
+            exit 1
+            ;;
+    esac
+}
+
+if [[ "$1" = "--help" ]] || [[ "$1" = "-h" ]];then
+    cappy::help && exit 1
+fi
+
+cappy::main $@ && exit 0
+
